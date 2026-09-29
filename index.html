@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="我的钱">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<title>我的钱 💰</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Arial,sans-serif;background:#f5f5f7;color:#171717}.wrap{max-width:680px;margin:auto;padding:22px 16px 40px}h1{font-size:30px;margin:8px 0 4px}.sub{color:#777;font-size:14px;margin-bottom:20px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{background:#fff;border-radius:18px;padding:17px;box-shadow:0 2px 12px #0000000a}.big{grid-column:1/-1}.label{font-size:13px;color:#777}.value{font-size:25px;font-weight:750;margin-top:7px}.big .value{font-size:36px}.positive{color:#16803c}.negative{color:#c62828}section{background:#fff;border-radius:18px;padding:18px;margin-top:14px;box-shadow:0 2px 12px #0000000a}h2{font-size:17px;margin:0 0 14px}label{display:block;font-size:13px;color:#666;margin:10px 0 6px}input,select,button{width:100%;padding:12px;border-radius:12px;border:1px solid #ddd;font-size:16px;background:#fff}button{border:0;background:#111;color:#fff;font-weight:650;margin-top:12px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.hint{font-size:12px;color:#888;margin-top:8px;line-height:1.5}.tx{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #eee}.tx:last-child{border-bottom:0}.note{font-weight:600}.date{font-size:12px;color:#888;margin-top:3px}.amount{font-weight:700}.empty{color:#999;text-align:center;padding:18px 0}.danger{background:#eee;color:#333}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>我的钱 💰</h1>
+<div class="sub">每记一笔，钱都会自动增减</div>
+
+<div class="grid">
+<div class="card big"><div class="label">现在一共有</div><div class="value" id="current">$0.00</div></div>
+<div class="card"><div class="label">原本有的钱</div><div class="value" id="initial">$0.00</div></div>
+<div class="card"><div class="label">累计赚了</div><div class="value" id="earned">$0.00</div></div>
+<div class="card"><div class="label">累计花了</div><div class="value" id="spent">$0.00</div></div>
+<div class="card"><div class="label">总收入</div><div class="value" id="income">$0.00</div></div>
+</div>
+
+<section>
+<h2>设置原本有的钱</h2>
+<input id="initialInput" type="number" step="0.01" min="0" placeholder="例如 3000">
+<button onclick="setInitial()">保存</button>
+<div class="hint">累计赚了 = 现在一共有 − 原本有的钱</div>
+</section>
+
+<section>
+<h2>记一笔</h2>
+<div class="row">
+<div><label>类型</label><select id="type"><option value="income">赚到钱 ＋</option><option value="expense">花钱 −</option></select></div>
+<div><label>日期</label><input id="date" type="date"></div>
+</div>
+<label>备注</label><input id="note" placeholder="例如：工资 / 买菜 / 房租">
+<label>金额</label><input id="amount" type="number" step="0.01" min="0" placeholder="0.00">
+<button onclick="addTx()">保存这笔账</button>
+</section>
+
+<section>
+<h2>账目</h2>
+<div id="list"></div>
+<button class="danger" onclick="clearAll()">清空全部数据</button>
+</section>
+</div>
+
+<script>
+const KEY="april_money_v3";
+let data=JSON.parse(localStorage.getItem(KEY)||'{"initial":0,"tx":[]}');
+const $=id=>document.getElementById(id);
+$("date").value=new Date().toISOString().slice(0,10);
+
+function money(n){return "$"+Number(n||0).toFixed(2)}
+function save(){localStorage.setItem(KEY,JSON.stringify(data));render()}
+function totals(){
+ const income=data.tx.filter(x=>x.type==="income").reduce((s,x)=>s+x.amount,0);
+ const spent=data.tx.filter(x=>x.type==="expense").reduce((s,x)=>s+x.amount,0);
+ const current=data.initial+income-spent;
+ const earned=current-data.initial;
+ return {income,spent,current,earned};
+}
+function render(){
+ const t=totals();
+ $("initial").textContent=money(data.initial);
+ $("current").textContent=money(t.current);
+ $("earned").textContent=money(t.earned);
+ $("spent").textContent=money(t.spent);
+ $("income").textContent=money(t.income);
+ $("earned").className="value "+(t.earned>=0?"positive":"negative");
+ $("current").className="value "+(t.current>=0?"positive":"negative");
+ const list=$("list");
+ if(!data.tx.length){list.innerHTML='<div class="empty">还没有记账记录</div>';return}
+ list.innerHTML=[...data.tx].reverse().map(x=>`
+ <div class="tx">
+  <div><div class="note">${esc(x.note||"未填写")}</div><div class="date">${x.date} · ${x.type==="income"?"赚到钱":"花钱"}</div></div>
+  <div class="amount ${x.type==="income"?"positive":"negative"}">${x.type==="income"?"+":"−"}${money(x.amount)}</div>
+ </div>`).join("");
+}
+function setInitial(){
+ const n=Number($("initialInput").value);
+ if(!Number.isFinite(n)||n<0){alert("请输入正确金额");return}
+ data.initial=n;save();$("initialInput").value="";
+}
+function addTx(){
+ const amount=Number($("amount").value);
+ if(!Number.isFinite(amount)||amount<=0){alert("请输入正确金额");return}
+ data.tx.push({type:$("type").value,date:$("date").value||new Date().toISOString().slice(0,10),note:$("note").value.trim(),amount});
+ save();$("amount").value="";$("note").value="";
+}
+function clearAll(){if(confirm("确定清空全部记账数据吗？")){data={initial:0,tx:[]};save()}}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+render();
+if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("./sw.js"));
+</script>
+</body>
+</html>
